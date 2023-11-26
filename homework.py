@@ -65,7 +65,7 @@ def get_api_answer(timestamp):
     try:
         response = requests.get(ENDPOINT, headers=HEADERS, params=payload)
         response.raise_for_status()
-
+        logger.info('Получен ответ от endpoint')
     except requests.RequestException as error:
         logger.error(f'Ошибка при запросе к сервису API:{error}!')
         raise ErrorGetApi(
@@ -99,6 +99,7 @@ def check_response(response):
     if not isinstance(homework, list):
         logger.error('Данные по ключу "homeworks" не list')
         raise TypeError
+    logger.info('Получены корректные данные ответа Яндекс-практикума')
     return homework
 
 
@@ -107,6 +108,7 @@ def parse_status(homework):
     try:
         homework_name = homework['homework_name']
         status = homework['status']
+        logger.info('Присутствуют правильные ключи в ответе')
     except KeyError as error:
         logger.error(f'Отсутсвуют необходимые ключи {error}')
         raise KeyError('Отсутсвуют необходимые ключи')
@@ -133,9 +135,9 @@ def main():
         bot = telegram.Bot(token=TELEGRAM_TOKEN)
     except telegram.TelegramError as error:
         logger.critical(f'Ошибка при запуске бота {str(error)}')
-        sys.exit()
+        raise BreakCode
 
-    current_timestamp = int(time.time())
+    current_timestamp = 0  # int(time.time())
 
     while True:
         try:
