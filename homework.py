@@ -1,17 +1,15 @@
+import logging
+import os
+import sys
+import time
 from http import HTTPStatus
 from json import JSONDecodeError
-import sys
-import telegram
 
+import requests
+import telegram
 from dotenv import load_dotenv
 
-import logging
-import requests
-import time
-import os
-
-from exception import AbsenceOfaMandatoryVar, ErrorGetApi
-
+from exception import BreakCode, ErrorGetApi, StatusNotOK
 
 load_dotenv()
 
@@ -43,13 +41,16 @@ HOMEWORK_VERDICTS = {
 
 def check_tokens():
     """Проверка доступности обязательных переменных окружения."""
+    if not TELEGRAM_TOKEN:
+        raise BreakCode
     return all(LIST_OF_ENVIRONMENT_VAR)
 
 
 def send_message(bot, message):
     """Отправка сообщения в чат телеграмма."""
     try:
-        bot.send_message(TELEGRAM_CHAT_ID, message)
+        bot.send_message(chat_id=TELEGRAM_CHAT_ID,
+                         text=message)
         logger.debug('Отправка сообщения в телеграмм')
     except telegram.TelegramError as error:
         logger.error(
@@ -59,22 +60,20 @@ def send_message(bot, message):
 
 def get_api_answer(timestamp):
     """Запрос к сервису Яндекс-практикум."""
-    url = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
-    headers = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
     payload = {'from_date': timestamp}
 
     try:
-        response = requests.get(url, headers=headers, params=payload)
+        response = requests.get(ENDPOINT, headers=HEADERS, params=payload)
         response.raise_for_status()
 
     except requests.RequestException as error:
         logger.error(f'Ошибка при запросе к сервису API:{error}!')
-        raise exceptions.GetAPIError(
+        raise ErrorGetApi(
             f'Ошибка при запросе к сервису API:{error}!')
 
     if response.status_code != HTTPStatus.OK:
         logger.error('Сервер вернул статус-код отличный от 200')
-        raise exceptions.StatusNotOKError(
+        raise StatusNotOK(
             'Сервер вернул статус-код отличный от 200'
         )
 
@@ -83,13 +82,13 @@ def get_api_answer(timestamp):
 
     except JSONDecodeError as error:
         logger.error(f'Ошибка конвертации данных из json {error}')
-        raise ErrorGetApi('Ошибка конвертации данных из json')
+        raise ValueError('Ошибка конвертации данных из json')
 
     return response
 
 
 def check_response(response):
-    """Проверка корректности данных ответа
+    """Проверка корректности данных ответа.
     с Яндекс-практикума.
     """
     if not isinstance(response, dict):
@@ -114,7 +113,6 @@ def parse_status(homework):
 
     try:
         verdict = HOMEWORK_VERDICTS[status]
-        print(verdict)
 
     except KeyError as error:
         logger.error(f'Неизвестный статус homework {error}')
@@ -125,13 +123,19 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
-    if not check_tokens():
+    try:
+        check_tokens()
+    except Exception:
         logger.critical('Отсутствуют обязательные переменные')
-        sys.exit('Отсутствие необходимых токенов для работы программы!')
+        raise BreakCode
 
-    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    try:
+        bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    except telegram.TelegramError as error:
+        logger.critical(f'Ошибка при запуске бота {str(error)}')
+        sys.exit()
 
-    current_timestamp = 1698292093  # время запроса 26.10.2023
+    current_timestamp = int(time.time())
 
     while True:
         try:
@@ -140,7 +144,7 @@ def main():
             homeworks = check_response(response)
 
             if not homeworks:
-                logger.info('Статус домашней работы не изменился')
+                logger.debug('Статус домашней работы не изменился')
             else:
                 message = parse_status(homeworks[0])
                 send_message(bot, message)
@@ -149,8 +153,10 @@ def main():
             message = f'Сбой в работе программы: {error}'
             logger.error(f'Сбой в работе программы: {error}')
             send_message(bot, message)
+
         finally:
             time.sleep(RETRY_PERIOD)
+
 
 if __name__ == '__main__':
     main()

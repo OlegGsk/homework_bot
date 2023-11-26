@@ -1,15 +1,16 @@
+class StatusNotOK(Exception):
+    """Статус ответа отличный от 200."""
 
-class AbsenceOfaMandatoryVar(Exception):
-    pass
-
-
-class NoConnect(Exception):
-    pass
-
-
-class HttpNotFound404(Exception):
     pass
 
 
 class ErrorGetApi(Exception):
+    """Ошибка при запросе к сервису API Яндекс-практикума."""
+
+    pass
+
+
+class BreakCode(Exception):
+    """Отсутствие необходимых переменных."""
+
     pass
