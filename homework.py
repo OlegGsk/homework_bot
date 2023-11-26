@@ -25,8 +25,6 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-LIST_OF_ENVIRONMENT_VAR = [PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]
-
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
@@ -42,8 +40,8 @@ HOMEWORK_VERDICTS = {
 def check_tokens():
     """Проверка доступности обязательных переменных окружения."""
     if not TELEGRAM_TOKEN:
+        logger.critical('Отсутствуют обязательная переменная')
         raise BreakCode
-    return all(LIST_OF_ENVIRONMENT_VAR)
 
 
 def send_message(bot, message):
@@ -125,11 +123,7 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
-    try:
-        check_tokens()
-    except Exception:
-        logger.critical('Отсутствуют обязательные переменные')
-        raise BreakCode
+    check_tokens()
 
     try:
         bot = telegram.Bot(token=TELEGRAM_TOKEN)
