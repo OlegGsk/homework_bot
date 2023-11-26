@@ -137,7 +137,7 @@ def main():
         logger.critical(f'Ошибка при запуске бота {str(error)}')
         raise BreakCode
 
-    current_timestamp = 0  # int(time.time())
+    current_timestamp = int(time.time())
 
     while True:
         try:
