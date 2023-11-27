@@ -9,7 +9,7 @@ import requests
 import telegram
 from dotenv import load_dotenv
 
-from exception import BreakCode, ErrorGetApi, StatusNotOK
+from exception import EmergencyStop, ErrorGetApi, StatusNotOK
 
 load_dotenv()
 
@@ -39,9 +39,9 @@ HOMEWORK_VERDICTS = {
 
 def check_tokens():
     """Проверка доступности обязательных переменных окружения."""
-    if not TELEGRAM_TOKEN:
-        logger.critical('Отсутствуют обязательная переменная')
-        raise BreakCode
+    if not all((TELEGRAM_TOKEN, PRACTICUM_TOKEN, TELEGRAM_CHAT_ID)):
+        logger.critical('Отсутствуют обязательные переменные')
+        raise EmergencyStop
 
 
 def send_message(bot, message):
@@ -59,28 +59,28 @@ def send_message(bot, message):
 def get_api_answer(timestamp):
     """Запрос к сервису Яндекс-практикум."""
     payload = {'from_date': timestamp}
+    message_error_api = 'Ошибка при запросе к сервису API:'
+    message_status_not_200 = 'Сервер вернул статус-код отличный от 200'
+    message_error_jsoin = 'Ошибка конвертации данных из json'
 
     try:
         response = requests.get(ENDPOINT, headers=HEADERS, params=payload)
         response.raise_for_status()
         logger.info('Получен ответ от endpoint')
     except requests.RequestException as error:
-        logger.error(f'Ошибка при запросе к сервису API:{error}!')
-        raise ErrorGetApi(
-            f'Ошибка при запросе к сервису API:{error}!')
+        logger.error(f'{message_error_api} {error}!')
+        raise ErrorGetApi(f'{message_error_api} {error}!')
 
     if response.status_code != HTTPStatus.OK:
-        logger.error('Сервер вернул статус-код отличный от 200')
-        raise StatusNotOK(
-            'Сервер вернул статус-код отличный от 200'
-        )
+        logger.error(message_status_not_200)
+        raise StatusNotOK(message_status_not_200)
 
     try:
         response = response.json()
 
     except JSONDecodeError as error:
-        logger.error(f'Ошибка конвертации данных из json {error}')
-        raise ValueError('Ошибка конвертации данных из json')
+        logger.error(f'{message_error_jsoin} {error}')
+        raise ValueError(message_error_jsoin)
 
     return response
 
@@ -92,12 +92,14 @@ def check_response(response):
     if not isinstance(response, dict):
         logger.error('Ответ сервера не является словарём')
         raise TypeError
+
     homework = response.get('homeworks')
 
     if not isinstance(homework, list):
         logger.error('Данные по ключу "homeworks" не list')
         raise TypeError
     logger.info('Получены корректные данные ответа Яндекс-практикума')
+
     return homework
 
 
@@ -113,7 +115,6 @@ def parse_status(homework):
 
     try:
         verdict = HOMEWORK_VERDICTS[status]
-
     except KeyError as error:
         logger.error(f'Неизвестный статус homework {error}')
         raise KeyError
@@ -129,14 +130,14 @@ def main():
         bot = telegram.Bot(token=TELEGRAM_TOKEN)
     except telegram.TelegramError as error:
         logger.critical(f'Ошибка при запуске бота {str(error)}')
-        raise BreakCode
+        raise EmergencyStop
 
-    current_timestamp = int(time.time())
+    timestamp = int(time.time())
 
     while True:
         try:
-            response = get_api_answer(current_timestamp)
-            current_timestamp = response.get('current_date')
+            response = get_api_answer(timestamp)
+            timestamp = response.get('current_date')
             homeworks = check_response(response)
 
             if not homeworks:

@@ -10,7 +10,7 @@ class ErrorGetApi(Exception):
     pass
 
 
-class BreakCode(Exception):
+class EmergencyStop(Exception):
     """Отсутствие необходимых переменных."""
 
     pass
