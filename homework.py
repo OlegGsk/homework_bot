@@ -66,7 +66,7 @@ def get_api_answer(timestamp):
     try:
         response = requests.get(ENDPOINT, headers=HEADERS, params=payload)
         response.raise_for_status()
-        logger.info('Получен ответ от endpoint')
+        logger.info(f'Попытка отправить Get запрос к endpoint {ENDPOINT}')
     except requests.RequestException as error:
         logger.error(f'{message_error_api} {error}!')
         raise ErrorGetApi(f'{message_error_api} {error}!')
@@ -82,6 +82,7 @@ def get_api_answer(timestamp):
         logger.error(f'{message_error_jsoin} {error}')
         raise ValueError(message_error_jsoin)
 
+    logger.info(f'Получен успешный ответ от endpoint {ENDPOINT}')
     return response
 
 
@@ -90,13 +91,13 @@ def check_response(response):
     с Яндекс-практикума.
     """
     if not isinstance(response, dict):
-        logger.error('Ответ сервера не является словарём')
+        logger.error('Ответ сервера не является типом "dict"')
         raise TypeError
 
     homework = response.get('homeworks')
 
     if not isinstance(homework, list):
-        logger.error('Данные по ключу "homeworks" не list')
+        logger.error('Данные по ключу "homeworks" не являются типом "list"')
         raise TypeError
     logger.info('Получены корректные данные ответа Яндекс-практикума')
 
@@ -108,7 +109,6 @@ def parse_status(homework):
     try:
         homework_name = homework['homework_name']
         status = homework['status']
-        logger.info('Присутствуют правильные ключи в ответе')
     except KeyError as error:
         logger.error(f'Отсутсвуют необходимые ключи {error}')
         raise KeyError('Отсутсвуют необходимые ключи')
@@ -116,8 +116,11 @@ def parse_status(homework):
     try:
         verdict = HOMEWORK_VERDICTS[status]
     except KeyError as error:
-        logger.error(f'Неизвестный статус homework {error}')
+        logger.error(f'Неизвестный статус домашней работы {error}')
         raise KeyError
+
+    logger.info('В ответе присутствуют ключи "homework_name", "status"')
+    logger.info('Получен статус домашней работы')
 
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
@@ -125,12 +128,16 @@ def parse_status(homework):
 def main():
     """Основная логика работы бота."""
     check_tokens()
+    logger.info('Присутствуют все обязательные переменные окружения')
 
     try:
+        logger.info('Попытка запустить telegram-bot')
         bot = telegram.Bot(token=TELEGRAM_TOKEN)
     except telegram.TelegramError as error:
         logger.critical(f'Ошибка при запуске бота {str(error)}')
         raise EmergencyStop
+
+    logger.info('Telegram-bot успешно запущен')
 
     timestamp = int(time.time())
 
