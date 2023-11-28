@@ -10,6 +10,7 @@ import telegram
 from dotenv import load_dotenv
 
 from exception import EmergencyStop, ErrorGetApi, StatusNotOK
+from core import MessageError
 
 load_dotenv()
 
@@ -29,6 +30,7 @@ RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
+message_log = MessageError()
 
 HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
@@ -51,36 +53,32 @@ def send_message(bot, message):
                          text=message)
         logger.debug('Отправка сообщения в телеграмм')
     except telegram.TelegramError as error:
-        logger.error(
-            f'Ошибка при отправке сообщения: {error}!'
-        )
+        logger.error(f'Ошибка при отправке сообщения: {error}!')
 
 
 def get_api_answer(timestamp):
     """Запрос к сервису Яндекс-практикум."""
     payload = {'from_date': timestamp}
-    message_error_api = 'Ошибка при запросе к сервису API:'
-    message_status_not_200 = 'Сервер вернул статус-код отличный от 200'
-    message_error_jsoin = 'Ошибка конвертации данных из json'
 
     try:
+        logger.info(f'Попытка отправить Get запрос к endpoint {ENDPOINT}')
         response = requests.get(ENDPOINT, headers=HEADERS, params=payload)
         response.raise_for_status()
-        logger.info(f'Попытка отправить Get запрос к endpoint {ENDPOINT}')
     except requests.RequestException as error:
-        logger.error(f'{message_error_api} {error}!')
-        raise ErrorGetApi(f'{message_error_api} {error}!')
+        message_log.error = f'Ошибка при запросе к endpoint:{ENDPOINT} {error}'
+        raise ErrorGetApi
 
     if response.status_code != HTTPStatus.OK:
-        logger.error(message_status_not_200)
-        raise StatusNotOK(message_status_not_200)
+        message_log.error = (f'Параметры запроса:{payload}'
+                             f'Сервер вернул статус-код:{response.status_code}'
+                             f'контент ответа:{response.content}')
+        raise StatusNotOK
 
     try:
         response = response.json()
-
-    except JSONDecodeError as error:
-        logger.error(f'{message_error_jsoin} {error}')
-        raise ValueError(message_error_jsoin)
+    except JSONDecodeError:
+        message_log.error = 'Ошибка конвертации данных из json'
+        raise ValueError
 
     logger.info(f'Получен успешный ответ от endpoint {ENDPOINT}')
     return response
@@ -91,13 +89,18 @@ def check_response(response):
     с Яндекс-практикума.
     """
     if not isinstance(response, dict):
-        logger.error('Ответ сервера не является типом "dict"')
+        message_log.error = 'Ответ сервера не является типом "dict"'
         raise TypeError
 
-    homework = response.get('homeworks')
+    if 'homeworks' in response:
+        homework = response.get('homeworks')
+    else:
+        message_log.error = 'Ключ "homeworks" отсутствует в ответе'
+        raise KeyError
 
     if not isinstance(homework, list):
-        logger.error('Данные по ключу "homeworks" не являются типом "list"')
+        message_log.error = ('Данные по ключу "homeworks" не являются'
+                             ' типом "list"')
         raise TypeError
     logger.info('Получены корректные данные ответа с сервера Яндекс-практикум')
 
@@ -106,22 +109,22 @@ def check_response(response):
 
 def parse_status(homework):
     """Получение статуса домашней работы."""
-    try:
+    if 'homework_name' in homework:
         homework_name = homework['homework_name']
-    except KeyError as error:
-        logger.error(f'Отсутсвует ключ "homework_name" {error}')
-        raise KeyError('Отсутсвуют необходимые ключи')
+    else:
+        message_log.error = 'Отсутсвует ключ "homework_name"'
+        raise KeyError
 
-    try:
+    if 'status' in homework:
         status = homework['status']
-    except KeyError as error:
-        logger.error(f'Отсутсвует ключ "status" {error}')
-        raise KeyError('Отсутсвуют необходимые ключи')
+    else:
+        message_log.error = 'Отсутсвует ключ "status"'
+        raise KeyError
 
     try:
         verdict = HOMEWORK_VERDICTS[status]
     except KeyError as error:
-        logger.error(f'Неизвестный статус домашней работы {error}')
+        message_log.error = f'Неизвестный статус домашней работы {error}'
         raise KeyError
 
     logger.info('В ответе присутствуют ключи "homework_name", "status"')
@@ -159,8 +162,8 @@ def main():
                 send_message(bot, message)
 
         except Exception as error:
-            message = f'Сбой в работе программы: {error}'
-            logger.error(f'Сбой в работе программы: {error}')
+            message = f'Сбой в работе программы: {message_log.error}'
+            logger.error(f'{message_log.error} {error}')
             send_message(bot, message)
 
         finally:
