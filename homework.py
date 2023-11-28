@@ -99,7 +99,7 @@ def check_response(response):
     if not isinstance(homework, list):
         logger.error('Данные по ключу "homeworks" не являются типом "list"')
         raise TypeError
-    logger.info('Получены корректные данные ответа Яндекс-практикума')
+    logger.info('Получены корректные данные ответа с сервера Яндекс-практикум')
 
     return homework
 
@@ -108,9 +108,14 @@ def parse_status(homework):
     """Получение статуса домашней работы."""
     try:
         homework_name = homework['homework_name']
+    except KeyError as error:
+        logger.error(f'Отсутсвует ключ "homework_name" {error}')
+        raise KeyError('Отсутсвуют необходимые ключи')
+
+    try:
         status = homework['status']
     except KeyError as error:
-        logger.error(f'Отсутсвуют необходимые ключи {error}')
+        logger.error(f'Отсутсвует ключ "status" {error}')
         raise KeyError('Отсутсвуют необходимые ключи')
 
     try:
