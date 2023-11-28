@@ -69,8 +69,10 @@ def get_api_answer(timestamp):
         raise ErrorGetApi
 
     if response.status_code != HTTPStatus.OK:
-        message_log.error = (f'Параметры запроса:{payload}'
-                             f'Сервер вернул статус-код:{response.status_code}'
+        message_log.error = (f'Параметры запроса:'
+                             f'endpoint: {ENDPOINT}'
+                             f'params: {payload}'
+                             f'статус-код:{response.status_code}'
                              f'контент ответа:{response.content}')
         raise StatusNotOK
 
